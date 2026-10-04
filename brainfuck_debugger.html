@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brainfuck Debugger</title>
+<style>
+:root {
+  --bg:#1e1e2e; --panel:#181825; --panel2:#11111b; --text:#cdd6f4;
+  --muted:#7f849c; --blue:#89b4fa; --green:#a6e3a1; --yellow:#f9e2af;
+  --red:#f38ba8; --purple:#cba6f7; --cyan:#89dceb; --line:rgba(205,214,244,.09);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.app{width:min(1500px,96vw);margin:22px auto;display:grid;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:11px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 16px #a6e3a166}
+h1{font-size:18px;margin:0;font-weight:650}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+button,input,textarea{font:inherit}
+button{
+  border:1px solid var(--line);background:#313244;color:var(--text);border-radius:7px;
+  padding:8px 14px;cursor:pointer;transition:.15s;
+}
+button:hover{background:#45475a}
+button.primary{background:#89b4fa;color:#11111b;border-color:#89b4fa;font-weight:700}
+button.primary:hover{background:#b4d0ff}
+button.danger{color:var(--red)}
+.speed{
+  display:flex;align-items:center;gap:8px;padding:5px 9px;border:1px solid var(--line);
+  border-radius:7px;color:var(--muted);font-size:12px
+}
+.speed input{width:115px;accent-color:var(--blue)}
+.speed-value{width:62px;text-align:right;color:var(--text);font-family:monospace}
+.workspace{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;min-height:690px}
+.panel{
+  min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  box-shadow:0 16px 50px #00000028;overflow:hidden
+}
+.panel-head{
+  height:43px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;
+  border-bottom:1px solid var(--line);color:var(--muted);font-size:12px
+}
+.panel-head strong{color:var(--text);font-weight:600}
+.editor-wrap{height:calc(100% - 43px);position:relative;display:flex;background:#181825}
+.line-numbers{
+  width:52px;flex:0 0 52px;padding-top:16px;text-align:right;padding-right:13px;
+  color:#585b70;font:14px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;
+  user-select:none;overflow:hidden
+}
+.editor{
+  position:relative;flex:1;min-width:0;height:100%;overflow:hidden;
+  font:15px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace
+}
+.highlight,.source{
+  position:absolute;inset:0;margin:0;padding:16px 18px 16px 0;
+  white-space:pre-wrap;overflow:auto;word-break:break-all;
+}
+.source{
+  resize:none;border:0;outline:0;background:transparent;color:transparent;
+  caret-color:var(--text);z-index:2;-webkit-text-fill-color:transparent;
+}
+.highlight{z-index:1;pointer-events:none;color:var(--muted)}
+.token{color:var(--muted);border-radius:3px}
+.token.ptr{color:var(--blue)} .token.io{color:var(--green)}
+.token.loop{color:var(--yellow)} .token.other{color:var(--muted)}
+.token.current{
+  color:#fff;background:#89b4fa2c;box-shadow:0 0 0 1px #89b4fa66,0 0 13px #89b4fa22
+}
+.sidebar{display:grid;grid-template-rows:minmax(330px,1fr) minmax(330px,1fr);gap:14px;min-height:0}
+.terminal{display:grid;grid-template-rows:auto 1fr auto}
+.terminal-body{
+  min-height:0;padding:16px;background:var(--panel2);overflow:auto;
+  font:14px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace
+}
+.prompt{color:var(--green)}
+.output{white-space:pre-wrap;word-break:break-all;color:var(--text)}
+.stdin{
+  width:100%;min-height:62px;resize:vertical;margin-top:13px;padding:9px;
+  border:1px solid var(--line);border-radius:6px;background:#181825;color:var(--text);
+  outline:0;font:12px ui-monospace,monospace
+}
+.stdin:focus{border-color:#89b4fa66}
+.terminal-foot{padding:8px 13px;border-top:1px solid var(--line);color:var(--muted);font:11px monospace}
+.debug{padding:14px;display:grid;gap:14px;align-content:start}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.stat{padding:9px;border:1px solid var(--line);border-radius:7px;background:#ffffff03}
+.label{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+.value{margin-top:4px;color:var(--cyan);font:13px monospace}
+.section-label{color:var(--muted);font-size:11px;margin-bottom:7px}
+.memory{display:flex;gap:5px;overflow:hidden}
+.cell{flex:0 0 48px;padding:6px 4px;text-align:center;border:1px solid var(--line);border-radius:7px;font:10px monospace}
+.cell.active{border-color:#89b4fa88;box-shadow:0 0 13px #89b4fa18}
+.cell-index{color:var(--muted);font-size:9px}.cell-value{font-size:14px;margin:2px}.cell-char{color:var(--green)}
+.progress{height:4px;background:#ffffff0d;border-radius:4px;overflow:hidden}
+.progress-bar{height:100%;width:0;background:var(--blue);transition:width .08s linear}
+.error{color:var(--red);white-space:pre-wrap;font:12px monospace}
+footer{display:flex;justify-content:space-between;color:var(--muted);font:11px monospace}
+@media(max-width:950px){
+  .workspace{grid-template-columns:1fr}.sidebar{grid-template-rows:420px 420px}
+  .workspace{min-height:auto}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="brand"><span class="dot"></span><h1>Brainfuck Debugger</h1></div>
+  <div class="toolbar">
+    <label class="speed">
+      Speed
+      <input id="speed" type="range" min="1" max="100" value="20">
+      <span class="speed-value" id="speedValue">20 instr/s</span>
+    </label>
+    <button id="run" class="primary">▶ Run</button>
+    <button id="pause">Ⅱ Pause</button>
+    <button id="reset" class="danger">↻ Reset</button>
+  </div>
+</header>
+
+<main class="workspace">
+<section class="panel">
+  <div class="panel-head">
+    <strong>main.bf</strong>
+    <span id="position">ready</span>
+  </div>
+  <div class="editor-wrap">
+    <div class="line-numbers" id="lineNumbers">1</div>
+    <div class="editor">
+      <pre class="highlight" id="highlight"></pre>
+      <textarea class="source" id="source" spellcheck="false" wrap="off">>+++++++++[<++++++++>-]<.>+++++++[<++++>-]<+.+++++++..+++.[-]
+>++++++++[<++++>-]<.>+++++++++++[<++++++++>-]<-.--------.+++
+.------.--------.[-]>++++++++[<++++>-]<+.[-]++++++++++.</textarea>
+    </div>
+  </div>
+</section>
+
+<aside class="sidebar">
+<section class="panel terminal">
+  <div class="panel-head"><strong>Terminal</strong><span>stdin / stdout</span></div>
+  <div class="terminal-body">
+    <div><span class="prompt">$</span> ./main.bf</div>
+    <div class="output" id="output"></div>
+    <textarea class="stdin" id="stdin" placeholder="Optional stdin..."></textarea>
+  </div>
+  <div class="terminal-foot" id="terminalStatus">Ready. Edit the code and press Run.</div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><strong>Debugger</strong><span id="state">IDLE</span></div>
+  <div class="debug">
+    <div class="stats">
+      <div class="stat"><div class="label">step</div><div class="value" id="step">0</div></div>
+      <div class="stat"><div class="label">instruction</div><div class="value" id="instruction">—</div></div>
+      <div class="stat"><div class="label">pointer</div><div class="value" id="pointer">0</div></div>
+      <div class="stat"><div class="label">cell</div><div class="value" id="cell">0</div></div>
+    </div>
+    <div>
+      <div class="section-label">memory tape · cells 0–9</div>
+      <div class="memory" id="memory"></div>
+    </div>
+    <div>
+      <div class="section-label">execution progress</div>
+      <div class="progress"><div class="progress-bar" id="progress"></div></div>
+    </div>
+    <div class="error" id="error"></div>
+  </div>
+</section>
+</aside>
+</main>
+
+<footer>
+  <span>Supported instructions: <b>+ - &lt; &gt; [ ] . ,</b></span>
+  <span>Cells are 8-bit and wrap from 255 → 0</span>
+</footer>
+</div>
+
+<script>
+const source = document.getElementById("source");
+const highlight = document.getElementById("highlight");
+const lineNumbers = document.getElementById("lineNumbers");
+const output = document.getElementById("output");
+const stdin = document.getElementById("stdin");
+const speed = document.getElementById("speed");
+const speedValue = document.getElementById("speedValue");
+const runBtn = document.getElementById("run");
+const pauseBtn = document.getElementById("pause");
+const resetBtn = document.getElementById("reset");
+const state = document.getElementById("state");
+const terminalStatus = document.getElementById("terminalStatus");
+const errorEl = document.getElementById("error");
+const stepEl = document.getElementById("step");
+const instructionEl = document.getElementById("instruction");
+const pointerEl = document.getElementById("pointer");
+const cellEl = document.getElementById("cell");
+const positionEl = document.getElementById("position");
+const progress = document.getElementById("progress");
+const memoryEl = document.getElementById("memory");
+
+for(let i=0;i<10;i++){
+  const el=document.createElement("div");
+  el.className="cell";
+  el.id="mem-"+i;
+  el.innerHTML=`<div class="cell-index">[${i}]</div><div class="cell-value">0</div><div class="cell-char">·</div>`;
+  memoryEl.appendChild(el);
+}
+
+let instructions=[];
+let bracketMap={};
+let pc=0, ptr=0, steps=0, inputPos=0, outputText="";
+let tape=new Uint8Array(30000);
+let inputText="";
+let running=false, paused=false, timer=null;
+let generation=0;
+
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function renderEditor(){
+  const text=source.value;
+  let n=0;
+  highlight.innerHTML=text.split("\\n").map(line=>{
+    let out="";
+    for(const ch of line){
+      if("><+-.,[]".includes(ch)){
+        const cls="><".includes(ch)?"ptr":".,".includes(ch)?"io":"[]".includes(ch)?"loop":"other";
+        out+=`<span class="token ${cls}" data-i="${n}">${ch}</span>`;
+        n++;
+      }else out+=escapeHtml(ch);
+    }
+    return out;
+  }).join("\\n");
+
+  lineNumbers.innerHTML=text.split("\\n").map((_,i)=>i+1).join("<br>");
+  source.scrollTop=source.scrollTop;
+  source.scrollLeft=source.scrollLeft;
+}
+
+function parse(){
+  const raw=source.value;
+  instructions=[];
+  bracketMap={};
+  const stack=[];
+  for(let i=0;i<raw.length;i++){
+    const ch=raw[i];
+    if("><+-.,[]".includes(ch)){
+      instructions.push({ch,sourceIndex:i});
+    }
+  }
+  for(let i=0;i<instructions.length;i++){
+    if(instructions[i].ch==="[") stack.push(i);
+    else if(instructions[i].ch==="]"){
+      if(!stack.length) throw new Error(`Unmatched ] at instruction ${i+1}.`);
+      const open=stack.pop();
+      bracketMap[i]=open;
+      bracketMap[open]=i;
+    }
+  }
+  if(stack.length) throw new Error(`Unmatched [ at instruction ${stack.pop()+1}.`);
+}
+
+function currentToken(){
+  document.querySelectorAll(".token.current").forEach(x=>x.classList.remove("current"));
+  if(pc<instructions.length){
+    const el=document.querySelector(`[data-i="${pc}"]`);
+    if(el){
+      el.classList.add("current");
+      el.scrollIntoView({block:"nearest",inline:"nearest"});
+    }
+  }
+}
+
+function render(){
+  currentToken();
+  const v=tape[ptr]||0;
+  stepEl.textContent=steps;
+  instructionEl.textContent=pc<instructions.length?`${instructions[pc].ch}  (${pc+1})`:"—";
+  pointerEl.textContent=ptr;
+  cellEl.textContent=v;
+  positionEl.textContent=`instruction ${Math.min(pc+1,instructions.length)} / ${instructions.length}`;
+  output.textContent=outputText;
+
+  for(let i=0;i<10;i++){
+    const el=document.getElementById("mem-"+i);
+    const x=tape[i];
+    el.classList.toggle("active",i===ptr);
+    el.querySelector(".cell-value").textContent=x;
+    el.querySelector(".cell-char").textContent=(x>=32&&x<=126)?String.fromCharCode(x):"·";
+  }
+
+  progress.style.width=(instructions.length?Math.min(100,pc/instructions.length*100):0)+"%";
+}
+
+function reset(){
+  generation++;
+  clearTimeout(timer);
+  running=false; paused=false;
+  tape=new Uint8Array(30000);
+  pc=0; ptr=0; steps=0; inputPos=0; outputText="";
+  errorEl.textContent="";
+  state.textContent="IDLE";
+  terminalStatus.textContent="Ready. Edit the code and press Run.";
+  render();
+}
+
+function finish(message="Program finished."){
+  running=false;
+  state.textContent="FINISHED";
+  terminalStatus.textContent=message;
+  progress.style.width="100%";
+  currentToken();
+}
+
+function executeOne(){
+  if(pc>=instructions.length){ finish(); return false; }
+  const op=instructions[pc].ch;
+
+  if(op===">"){
+    ptr++;
+    if(ptr>=tape.length) ptr=0;
+    pc++;
+  }else if(op==="<"){
+    ptr--;
+    if(ptr<0) ptr=tape.length-1;
+    pc++;
+  }else if(op==="+"){
+    tape[ptr]=(tape[ptr]+1)&255; pc++;
+  }else if(op==="-"){
+    tape[ptr]=(tape[ptr]-1+256)&255; pc++;
+  }else if(op==="."){
+    outputText+=String.fromCharCode(tape[ptr]); pc++;
+  }else if(op===","){
+    tape[ptr]=inputPos<inputText.length?inputText.charCodeAt(inputPos++)&255:0;
+    pc++;
+  }else if(op==="["){
+    if(tape[ptr]===0) pc=bracketMap[pc]+1;
+    else pc++;
+  }else if(op==="]"){
+    if(tape[ptr]!==0) pc=bracketMap[pc];
+    else pc++;
+  }
+
+  steps++;
+  return true;
+}
+
+function delay(){
+  const rate=Number(speed.value);
+  return 1000/rate;
+}
+
+function loop(id){
+  if(!running || id!==generation) return;
+
+  if(pc>=instructions.length){
+    finish();
+    return;
+  }
+
+  executeOne();
+  render();
+
+  if(pc>=instructions.length){
+    finish();
+    return;
+  }
+
+  timer=setTimeout(()=>loop(id),delay());
+}
+
+function run(){
+  if(running) return;
+
+  try{
+    parse();
+  }catch(e){
+    errorEl.textContent=e.message;
+    state.textContent="ERROR";
+    return;
+  }
+
+  if(pc>=instructions.length || steps===0 && !paused){
+    if(steps===0) {
+      tape=new Uint8Array(30000); pc=0; ptr=0; steps=0; inputPos=0; outputText="";
+    }
+  }
+
+  inputText=stdin.value;
+  errorEl.textContent="";
+  generation++;
+  running=true;
+  paused=false;
+  state.textContent="RUNNING";
+  terminalStatus.textContent="Executing…";
+  const id=generation;
+  loop(id);
+}
+
+function pause(){
+  if(!running) return;
+  running=false; paused=true;
+  clearTimeout(timer);
+  state.textContent="PAUSED";
+  terminalStatus.textContent="Paused.";
+}
+
+speed.addEventListener("input",()=>{
+  speedValue.textContent=speed.value+" instr/s";
+});
+
+source.addEventListener("input",()=>{
+  if(running) pause();
+  renderEditor();
+  errorEl.textContent="";
+  state.textContent="EDITING";
+});
+
+source.addEventListener("scroll",()=>{
+  highlight.scrollTop=source.scrollTop;
+  highlight.scrollLeft=source.scrollLeft;
+  lineNumbers.scrollTop=source.scrollTop;
+});
+
+runBtn.addEventListener("click",run);
+pauseBtn.addEventListener("click",pause);
+resetBtn.addEventListener("click",reset);
+
+renderEditor();
+reset();
+</script>
+</body>
+</html>
